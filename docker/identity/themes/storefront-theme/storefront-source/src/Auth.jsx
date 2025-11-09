@@ -1,0 +1,256 @@
+import React, { useState } from "react";
+import styles from "./css/auth.module.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+import axios from "axios";
+
+export default function Auth() {
+  const [isActive, setIsActive] = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    passwordConfirm: "",
+    firstName: "",
+    lastName: "",
+    role: "",
+  });
+
+  const handleLogin = (e) => {
+    console.log("Login form submitted");
+    e.preventDefault();
+
+    const username = e.target.username.value;
+    const password = e.target.password.value;
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = window.__KEYCLOAK_CONTEXT__?.actionUrl || "#";
+
+    const userInput = document.createElement("input");
+    userInput.type = "hidden";
+    userInput.name = "username";
+    userInput.value = username;
+    form.appendChild(userInput);
+
+    const passInput = document.createElement("input");
+    passInput.type = "hidden";
+    passInput.name = "password";
+    passInput.value = password;
+    form.appendChild(passInput);
+
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const getToken = async () => {
+    try {
+      const res = await axios.get("http://localhost:8000/get-token");
+      const token = res.data.accessToken;
+      return token;
+    } catch (err) {
+      console.error("Lỗi lấy token", err);
+      return null;
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    console.log("Register form submitted", registerForm);
+
+    try {
+
+      const accessToken = await getToken();
+
+      const res = await axios.post(
+        "http://localhost:8000/api/user-service/storefront/users",
+        {
+          username: registerForm.username,
+          email: registerForm.email,
+          password: registerForm.password,
+          passwordConfirm: registerForm.passwordConfirm,
+          firstName: registerForm.firstName,
+          lastName: registerForm.lastName,
+          role: registerForm.role,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      alert("Đăng ký thành công! Hãy đăng nhập.");
+      console.log(res.data);
+
+      setIsActive(false);
+      setRegisterForm({ username: "", email: "", password: "", passwordConfirm: "", firstName: "", lastName: "" }); // reset form
+    } catch (err) {
+      console.error(err);
+      alert("Đăng ký thất bại!");
+    }
+  };
+
+
+  return (
+    <div className={`${styles.container} ${isActive ? styles.active : ""}`}>
+      {/* Login Form */}
+      <div className={`${styles["form-box"]} ${styles.login}`}>
+        <form onSubmit={handleLogin}>
+          <h1>Đăng Nhập</h1>
+          <div className={styles["input-box"]}>
+            <input type="text" name="username" placeholder="Tên đăng nhập" required />
+            <i className="fas fa-user"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input type="password" name="password" placeholder="mật khẩu" required />
+            <i className="fas fa-lock"></i>
+          </div>
+          <div className={styles["remember-forgot"]}>
+            <label>
+              <input type="checkbox" /> nhớ tôi
+            </label>
+            <a href="#">quên mật khẩu?</a>
+          </div>
+          <button type="submit" className={styles.btn}>
+            Đăng nhập
+          </button>
+          <p>đăng nhập bằng nền tảng khác</p>
+          <div className={styles["social-icons"]}>
+            <a href="#"><i className="fab fa-google"></i></a>
+            <a href="#"><i className="fab fa-facebook"></i></a>
+          </div>
+        </form>
+      </div>
+
+      {/* Register Form */}
+      <div className={`${styles["form-box"]} ${styles.register}`}>
+        <form onSubmit={handleRegister}>
+          <h1>Đăng Ký</h1>
+          <div className={styles["input-box"]}>
+            <input
+              type="text"
+              name="username"
+              placeholder="Tên đăng nhập"
+              required
+              value={registerForm.username}
+              onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
+            />
+            <i className="fas fa-user"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              required
+              value={registerForm.email}
+              onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+            />
+            <i className="fas fa-envelope"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input
+              type="password"
+              name="password"
+              placeholder="mật khẩu"
+              required
+              value={registerForm.password}
+              onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+            />
+            <i className="fas fa-lock"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input
+              type="password"
+              name="passwordConfirm"
+              placeholder="Xác nhận mật khẩu"
+              required
+              value={registerForm.passwordConfirm}
+              onChange={(e) => setRegisterForm({ ...registerForm, passwordConfirm: e.target.value })}
+            />
+            <i className="fas fa-lock"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input
+              type="text"
+              name="firstName"
+              placeholder="Họ và tên lót"
+              required
+              value={registerForm.firstName}
+              onChange={(e) => setRegisterForm({ ...registerForm, firstName: e.target.value })}
+            />
+            <i className="fa fa-user"></i>
+          </div>
+          <div className={styles["input-box"]}>
+            <input
+              type="text"
+              name="lastName"
+              placeholder="Tên"
+              required
+              value={registerForm.lastName}
+              onChange={(e) => setRegisterForm({ ...registerForm, lastName: e.target.value })}
+            />
+            <i className="fas fa-id-card"></i>
+          </div>
+          
+          <div className={styles["input-box"]}>
+            <label>Đăng ký quyền</label>
+            <div className={styles["roles-checkbox"]}>
+              {["HỌC VIÊN", "GIÁO VIÊN"].map((role) => (
+                <label key={role}>
+                  <input
+                    type="radio"
+                    name="role"  // cùng name để chỉ chọn 1
+                    value={role}
+                    checked={registerForm.role === role}
+                    onChange={(e) =>
+                      setRegisterForm({ ...registerForm, role: e.target.value })
+                    }
+                  />
+                  <span>{role.charAt(0) + role.slice(1).toLowerCase()}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+
+          <button type="submit" className={styles.btn}>
+            Đăng ký
+          </button>
+          <p>hoặc đăng ký bằng các nền tảng khác</p>
+          <div className={styles["social-icons"]}>
+            <a href="#"><i className="fab fa-google"></i></a>
+            <a href="#"><i className="fab fa-facebook"></i></a>
+          </div>
+        </form>
+      </div>
+
+      {/* Toggle Box */}
+      <div className={styles["toggle-box"]}>
+        <div className={`${styles["toggle-panel"]} ${styles["toggle-left"]}`}>
+          <h1>Xin chào!</h1>
+          <p>Bạn không có tài khoản?</p>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => setIsActive(true)}
+          >
+            Đăng ký
+          </button>
+        </div>
+
+        <div className={`${styles["toggle-panel"]} ${styles["toggle-right"]}`}>
+          <h1>Chào mừng trở lại!</h1>
+          <p>Bạn đã có tài khoản?</p>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => setIsActive(false)}
+          >
+            Đăng nhập
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

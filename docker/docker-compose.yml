@@ -1,0 +1,134 @@
+version: "3.9"
+
+services:
+  identity: 
+    image: quay.io/keycloak/keycloak:26.0.2
+    container_name: "identity"
+    command:
+      - start-dev
+      - --import-realm
+      - --spi-theme-cache-themes=false
+      - --spi-theme-cache-templates=false
+    environment:
+      - KC_DB=${MSSQL_HOSTNAME}
+      - KC_DB_URL=${MSSQL_DATASOURCE_URL};databaseName=identity_db;encrypt=false
+      - KC_DB_USERNAME=${MSSQL_SA_USERNAME}
+      - KC_DB_PASSWORD=${MSSQL_SA_PASSWORD}
+      - KC_BOOTSTRAP_ADMIN_USERNAME=${KC_BOOTSTRAP_ADMIN_USERNAME}
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_BOOTSTRAP_ADMIN_PASSWORD}
+    volumes:
+      - ./identity/drivers:/opt/keycloak/providers
+      - ./identity/themes/storefront-theme:/opt/keycloak/themes/storefront-theme
+      - ./identity/themes/backoffice-theme:/opt/keycloak/themes/backoffice-theme
+      - ./identity/realms/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8080:8080"
+    networks:
+      - course-network
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: "mssql"
+    hostname: "mssql"
+    ports:
+      - "14330:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+    restart: unless-stopped
+    volumes:
+      - ./mssql/data/mssql/backups:/var/opt/mssql/backups # SQL scripts, backups
+      - ./mssql/data/mssql/data:/var/opt/mssql/data      
+      - ./mssql/data/mssql/log:/var/opt/mssql/log         # Log files
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/1433'" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - course-network
+
+  mssql-cmd:  # This container used for executing SQL scripts in SQL Server
+    image: mcr.microsoft.com/mssql-tools:latest
+    container_name: "mssql-cmd"
+    depends_on:
+      - mssql
+    command: /opt/mssql/sql_scripts/run-initialization.sh
+    stdin_open: true
+    volumes:
+      - ./mssql/sql_scripts:/opt/mssql/sql_scripts
+    networks:
+      - course-network
+
+  zookeeper:
+    image: debezium/zookeeper:2.7.3.Final
+    restart: always
+    container_name: "zookeeper"
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+    networks:
+      - course-network
+
+  storefront:
+    container_name: "storefront"
+    image: ghcr.io/online-language-learning-system/storefront-bff-image:1.0.0
+    ports:
+      - "8000:8000"
+    environment:
+      - KEYCLOAK_CLIENT_SECRET_STOREFRONT=${KEYCLOAK_CLIENT_SECRET_STOREFRONT}
+      - KEYCLOAK_TOKEN_URI=${KEYCLOAK_TOKEN_URI}
+      - KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI}
+      - USER_SERVICE_URI=${USER_SERVICE_URI}
+      - STOREFRONT_REACTJS_URI=${STOREFRONT_REACTJS_URI}
+      - COURSE_SERVICE_URI=${COURSE_SERVICE_URI}
+    networks:
+      - course-network
+  storefront-reactjs:
+    container_name: "storefront-reactjs"
+    image: ghcr.io/online-language-learning-system/storefront-image:1.0.0
+    ports:
+      - "3000:80"
+    networks:
+      - course-network
+  user-service:
+    container_name: "user-service"
+    image: ghcr.io/online-language-learning-system/user-image:latest
+    ports:
+      - "9000:9000"
+    environment:
+      - KEYCLOAK_SERVER_URI=${KEYCLOAK_SERVER_URI}
+      - KEYCLOAK_CLIENT_SECRET_USER=${KEYCLOAK_CLIENT_SECRET_USER}
+      - KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI}
+    networks:
+      - course-network
+
+  media-service:
+    image: ghcr.io/online-language-learning-system/media-image:1.0.1
+    container_name: "media-service"
+    ports:
+      - "9003:9003"
+    environment:
+      - KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI}
+    networks:
+      - course-network
+
+  course-service:
+    image: ghcr.io/online-language-learning-system/course-image:1.0.1
+    container_name: "course-service"
+    ports:
+      - "9002:9002"
+    environment:
+      - KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI}
+      - MSSQL_DATASOURCE_URL=${MSSQL_DATASOURCE_URL}
+      - MSSQL_SA_USERNAME=${MSSQL_SA_USERNAME}
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+      - MEDIA_SERVICE=${MEDIA_SERVICE}
+    networks:
+      - course-network
+
+networks:
+  course-network:
+    driver: bridge
+    name: course-network
